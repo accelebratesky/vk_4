@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 import torch.nn.modules as nn
 from torch.utils.data import TensorDataset, DataLoader
 import copy
+import matplotlib.pyplot as plt
 data = pd.read_csv('data.csv')
 
 def set_seed(seed):
@@ -18,7 +19,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-set_seed(42)
+set_seed(30)
 
 insame_weight = ["diameter","speed"]    #number good 数值特征
 same_weight = ["color"]             #要独热编码的  类别特征
@@ -43,16 +44,18 @@ def get_preprocessor():
     ])
 
 X_k, X_test, y_k, y_test = train_test_split(
-    X, y, test_size=0.15, random_state=42, shuffle=True
+    X, y, test_size=0.15, random_state=70, shuffle=True
 )
 X_train, X_valid, y_train, y_valid = train_test_split(
-    X_k, y_k, test_size=0.15, random_state=42, shuffle=True
+    X_k, y_k, test_size=0.15, random_state=70, shuffle=True
 )
 print("y_train mean, std:", y_train.mean().item(), y_train.std().item())
 print("y_valid mean, std:", y_valid.mean().item(), y_valid.std().item())
 print("y_test  mean, std:", y_test.mean().item(), y_test.std().item())
 
 n_train = len(X_train)
+n_valid = len(X_valid)
+
 level_1 = 28
 level_2 = 14
 drop_num=0.02
@@ -71,6 +74,9 @@ class Net(nn.Module):
              nn.Dropout(drop_num),
              nn.Linear(level_2,1)
          )
+         self.train_loss_history = []
+         self.val_loss_history = []
+         self.epoch_record = []
      def forward(self,x):
          return self.net(x)
 
@@ -119,6 +125,9 @@ for epoch in range(1000):
     avg_loss = total_loss / n_train
     if epoch % 1 == 0:
         print("epoch:", epoch, "train_loss:",avg_loss)
+    if epoch % 10 == 0:
+        model.train_loss_history.append(avg_loss)
+
     model.eval()
     total_val_loss = 0
     total_num=0
@@ -126,7 +135,9 @@ for epoch in range(1000):
         pred=model(X_valid)
         loss_2=loss_fn(pred, y_valid).item()
         print("epoch:", epoch, "val_loss:", loss_2)
-
+    if epoch % 10 == 0:
+        model.val_loss_history.append(loss_2)
+        model.epoch_record.append(epoch)
 
     if loss_2 < best_final_loss:
         best_final_loss = loss_2
@@ -154,4 +165,15 @@ with torch.no_grad():
      pred=model(X_test)
      loss_3=loss_fn(pred, y_test).item()
      print("test_loss:", loss_3)
+
+
+plt.figure()
+plt.plot(model.epoch_record, model.train_loss_history,label="Train Loss")
+plt.plot(model.epoch_record, model.val_loss_history,label="Val Loss")
+plt.xlabel("epoch")
+plt.ylabel("loss")
+plt.ylim(bottom=0, top=100)
+plt.title("MLP")
+plt.grid(alpha=0.3)
+plt.show()
 
